@@ -1,0 +1,20 @@
+ultralytics
+opencv-python 
+# pip install onnxslim==0.1.74
+# pip install onnxruntime==1.16.3
+
+
+numpy
+
+pyyaml
+# streamlit
+psutil 
+requests
+onnx 
+onnxruntime 
+# onnxruntime-gpu
+# tqdm 
+# matplotlib 
+# seaborn
+
+# yolo download model=yolov8n.pt
