@@ -56,6 +56,12 @@ class InferenceEngine:
             receiver_email="sahukomendra721@gmail.com",
         )
 
+        # Persistent HTTP session for connection reuse (keep-alive)
+        self.session = requests.Session()
+        self.session.headers.update({"Connection": "keep-alive"})
+        self.backend_url = os.getenv("BACKEND_URL", "http://127.0.0.1:5001/update")
+        print(f"[INFO] Backend URL: {self.backend_url}")
+
         print(f"[INFO] Opening camera stream: {stream_url}")
         self.cap = cv2.VideoCapture(stream_url)
 
@@ -151,9 +157,9 @@ class InferenceEngine:
                 "metrics": metrics,
                 "alerts": alerts,
             }
-            backend_url = os.getenv("BACKEND_URL", "http://127.0.0.1:5001/update")
             try:
-                requests.post(backend_url, json=output, timeout=0.05)
+                # Use persistent session for connection reuse
+                self.session.post(self.backend_url, json=output, timeout=0.05)
             except Exception:
                 pass  # ignore connection errors if backend not running
 
@@ -169,6 +175,9 @@ class InferenceEngine:
 
         self.cap.release()
         cv2.destroyAllWindows()
+
+        # Close persistent HTTP session
+        self.session.close()
 
         # ✅ AUTOMATIC EMAIL ON STOP
         self.emailer.send_log("vehicle_log.csv")

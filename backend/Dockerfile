@@ -13,4 +13,4 @@ COPY server.py ./
 EXPOSE 5001
 ENV PORT=5001
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", "--threads", "2", "server:app"]
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "5001"]

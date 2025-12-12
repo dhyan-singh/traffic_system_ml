@@ -5,11 +5,14 @@ import { TrafficData, TimeSeriesPoint } from '@/types/traffic';
 // Backend API endpoint — uses Vite env var VITE_API_URL if present, otherwise localhost for dev
 const BASE_API = (import.meta && import.meta.env && import.meta.env.VITE_API_URL) || 'http://127.0.0.1:5001';
 
-// Polling interval (1 second)
+// Polling interval (1 second) - used as fallback when SSE is not available
 const POLLING_INTERVAL = 1000;
 
 // Max history for charts
 const MAX_HISTORY_POINTS = 60;
+
+// Disable SSE; use polling-only
+const USE_SSE = false;
 
 // ---------------------------------------------------------------------------
 // DEMO DATA (used only when backend is unavailable)
@@ -76,7 +79,9 @@ export function useTrafficData(cameraId: string = 'default') {
   const [congestionHistory, setCongestionHistory] = useState<TimeSeriesPoint[]>([]);
 
   const failedAttempts = useRef(0);
+  const eventSourceRef = useRef<EventSource | null>(null);
   const API_URL = `${BASE_API.replace(/\/$/, '')}/latest?camera_id=${cameraId}`;
+  const SSE_URL = `${BASE_API.replace(/\/$/, '')}/stream?camera_id=${cameraId}`;
 
   // -------------------------------------------------------------------------
   // PUSH NEW HISTORY VALUES
@@ -156,9 +161,70 @@ export function useTrafficData(cameraId: string = 'default') {
     setData(demo);
     updateHistoryData(demo);
   }, [updateHistoryData]);
+  // SSE CONNECTION (Server-Sent Events for real-time push)
+  // -------------------------------------------------------------------------
+  const connectSSE = useCallback(() => {
+    if (!USE_SSE) return;
+
+    // Close existing connection
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+
+    try {
+      const eventSource = new EventSource(SSE_URL);
+      eventSourceRef.current = eventSource;
+
+      eventSource.onopen = () => {
+        console.log('[SSE] Connected to real-time stream');
+        setIsConnected(true);
+        setIsLoading(false);
+        setIsDemoMode(false);
+        setError(null);
+        failedAttempts.current = 0;
+      };
+
+      eventSource.onmessage = (event) => {
+        try {
+          const jsonData = JSON.parse(event.data);
+          
+          if (Object.keys(jsonData).length === 0) {
+            setError('Waiting for real-time data...');
+            return;
+          }
+
+          setData(jsonData);
+          updateHistoryData(jsonData);
+          setError(null);
+        } catch (err) {
+          console.error('[SSE] Failed to parse message:', err);
+        }
+      };
+
+      eventSource.onerror = (err) => {
+        console.error('[SSE] Connection error:', err);
+        eventSource.close();
+        eventSourceRef.current = null;
+        
+        failedAttempts.current += 1;
+        
+        if (failedAttempts.current >= 3) {
+          console.log('[SSE] Falling back to polling mode');
+          setIsDemoMode(false); // Will trigger polling fallback
+        } else {
+          // Retry SSE connection
+          setTimeout(connectSSE, 2000);
+        }
+      };
+    } catch (err) {
+      console.error('[SSE] Failed to establish connection:', err);
+      failedAttempts.current += 1;
+    }
+  }, [SSE_URL, updateHistoryData]);
 
   // -------------------------------------------------------------------------
-  // EFFECT → POLLING LOOP
+  // EFFECT → POLLING LOOP ONLY (SSE disabled)
   // -------------------------------------------------------------------------
   useEffect(() => {
     // Reset state when camera changes
@@ -169,9 +235,11 @@ export function useTrafficData(cameraId: string = 'default') {
     setCongestionHistory([]);
     setIsDemoMode(false);
     failedAttempts.current = 0;
-    
+
+    // Initial fetch
     fetchData();
 
+    // Polling interval
     const interval = setInterval(() => {
       if (isDemoMode) {
         generateDemoUpdate();
@@ -180,6 +248,7 @@ export function useTrafficData(cameraId: string = 'default') {
       }
     }, POLLING_INTERVAL);
 
+    // Cleanup
     return () => clearInterval(interval);
   }, [cameraId, fetchData, generateDemoUpdate, isDemoMode]);
 
