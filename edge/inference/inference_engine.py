@@ -79,37 +79,34 @@ class InferenceEngine:
     def _detections_to_json(self, results, conf_thresh=0.6):
         detections = []
 
-        # Move tensors to device (GPU if available, else CPU)
-        boxes = results.boxes.xyxy.to(device)
-        confs = results.boxes.conf.to(device)
-        clss = results.boxes.cls.to(device)
+        # Move whole arrays to CPU once, not per-item
+        boxes = results.boxes.xyxy.cpu().numpy()
+        confs = results.boxes.conf.cpu().numpy()
+        clss = results.boxes.cls.cpu().numpy()
 
-        # TRACK IDs (optional but used for accident detection)
-        ids = results.boxes.id.to(device) if results.boxes.id is not None else None
+        ids = None
+        if getattr(results.boxes, "id", None) is not None:
+            ids = results.boxes.id.cpu().numpy()
 
         for i in range(len(boxes)):
-            conf = float(confs[i].item())
-
-            # ✅ CONFIDENCE FILTER (YOUR REQUEST)
+            conf = float(confs[i])
             if conf < conf_thresh:
                 continue
 
-            cls = int(clss[i].item())
+            cls = int(clss[i])
             x1, y1, x2, y2 = map(float, boxes[i].tolist())
+            track_id = int(ids[i]) if ids is not None else -1
 
-            track_id = int(ids[i].item()) if ids is not None else -1
-
-            detections.append(
-                {
-                    "track_id": track_id,
-                    "class_id": cls,
-                    "class_name": self.model.names[cls],
-                    "confidence": round(conf, 3),
-                    "bbox": [x1, y1, x2, y2],
-                }
-            )
+            detections.append({
+                "track_id": track_id,
+                "class_id": cls,
+                "class_name": self.model.names[cls],
+                "confidence": round(conf, 3),
+                "bbox": [x1, y1, x2, y2],
+            })
 
         return detections
+
 
     def run(self, display=True):
         print("[INFO] Starting inference loop... Press Q to exit.")
@@ -159,7 +156,7 @@ class InferenceEngine:
             }
             try:
                 # Use persistent session for connection reuse
-                self.session.post(self.backend_url, json=output, timeout=0.05)
+                self.session.post(self.backend_url, json=output, timeout=0.005)
             except Exception:
                 pass  # ignore connection errors if backend not running
 

@@ -1,6 +1,19 @@
 version: "3.9"
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: traffic-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: traffic
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
   redis:
     image: redis:7-alpine
     container_name: traffic-redis
@@ -14,8 +27,10 @@ services:
     container_name: traffic-backend
     restart: unless-stopped
     depends_on:
+      - postgres
       - redis
     environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/traffic
       - REDIS_URL=redis://redis:6379/0
       - PORT=5001
     ports:
@@ -36,3 +51,6 @@ services:
 networks:
   default:
     name: traffic-net
+
+volumes:
+  pgdata:
