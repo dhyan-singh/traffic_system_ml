@@ -54,20 +54,34 @@ npm run dev
 
 This project is built with:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
 
-## How can I deploy this project?
+# Frontend (React + Vite)
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+Dashboard UI for real-time traffic analytics.
 
-## Can I connect a custom domain to my Lovable project?
+## Data Source
+- Uses `VITE_API_URL` (build-time arg) to call backend REST API
+- Endpoints: `GET /cameras`, `GET /latest?camera_id=...`
+- Polling interval: 1s (SSE/WebSockets not used)
 
-Yes, you can!
+## Scripts
+- `npm run dev` — Start dev server
+- `npm run build` — Build production bundle
+- `npm run preview` — Preview built bundle
 
+## Docker
+- Built image serves static assets via Nginx
+- Example build arg: `VITE_API_URL=http://localhost:5001`
+
+## Development
+```
+npm install
+npm run dev
+```
+
+## Notes
+- Auto-selects first available camera from `/cameras`
+- Shows demo mode if backend unreachable
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)

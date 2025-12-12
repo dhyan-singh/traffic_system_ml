@@ -204,6 +204,43 @@ async def latest(camera_id: str = "default"):
     return JSONResponse({})
 
 
+@app.get("/events")
+async def events(camera_id: str, limit: int = 100):
+    """Return recent persisted events from Postgres for a camera."""
+    if not _pg_available():
+        return JSONResponse({"error": "Postgres not configured"}, status_code=503)
+
+    # clamp limit to sensible bounds
+    limit = max(1, min(limit, 1000))
+
+    try:
+        with pg_pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT payload, received_at
+                    FROM traffic_events
+                    WHERE camera_id = %s
+                    ORDER BY received_at DESC
+                    LIMIT %s
+                    """,
+                    (camera_id, limit),
+                )
+                rows = cur.fetchall()
+        data = [
+            {
+                "payload": json.loads(row[0]) if isinstance(row[0], str) else row[0],
+                "received_at": row[1].isoformat(),
+            }
+            for row in rows
+        ]
+        return JSONResponse(
+            {"camera_id": camera_id, "count": len(data), "events": data}
+        )
+    except Exception:
+        return JSONResponse({"error": "Query failed"}, status_code=500)
+
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5001))
     print(f"[INFO] FastAPI Backend starting on port {port}")

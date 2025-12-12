@@ -2,7 +2,7 @@
 
 ## System Overview
 
-This is a **real-time traffic monitoring system** with edge AI inference, scalable backend API, and live dashboard visualization.
+This is a **real-time traffic monitoring system** with edge AI inference, a FastAPI backend (Redis hot state + Postgres cold storage), and a React/Vite dashboard.
 
 ### Components
 
@@ -13,11 +13,12 @@ This is a **real-time traffic monitoring system** with edge AI inference, scalab
    - Sends JSON payloads to backend via HTTP POST every frame
    - Stateless - each edge device operates independently
 
-2. **Backend (Flask API)** - Dockerized
-   - Receives detection data from multiple edge devices
-   - Stores latest state per camera_id in Redis (or in-memory fallback)
-   - Serves REST API endpoints for frontend queries
-   - Horizontally scalable with Redis as shared state
+2. **Backend (FastAPI + Uvicorn)** - Dockerized
+  - Receives detection data from multiple edge devices via `POST /update`
+  - Hot state per `camera_id` in Redis (in-memory fallback)
+  - Cold storage of raw payloads in Postgres (`traffic_events` JSONB)
+  - REST endpoints: `GET /latest`, `GET /cameras` (stale camera filtering)
+  - Horizontally scalable (stateless app, shared Redis/Postgres)
 
 3. **Frontend (React Dashboard)** - Dockerized
    - Real-time dashboard with live metrics visualization
@@ -26,9 +27,13 @@ This is a **real-time traffic monitoring system** with edge AI inference, scalab
    - Falls back to demo mode if backend unavailable
 
 4. **Redis** - Dockerized
-   - Shared state store for camera data
-   - Enables horizontal scaling of backend replicas
-   - Persistent storage for traffic analytics
+  - Shared hot state store for per-camera latest snapshot
+  - Enables horizontal scaling of backend replicas
+  - Cleans stale cameras beyond configurable `STALE_CAMERA_SECONDS`
+
+5. **Postgres** - Dockerized
+  - Cold storage for permanent retention of edge payloads
+  - Table: `traffic_events(id, camera_id, payload JSONB, received_at)`
 
 ---
 
@@ -44,10 +49,11 @@ graph TB
 
     subgraph "Backend Layer (Docker/Scalable)"
         LB[Load Balancer<br/>Optional]
-        B1[Backend API<br/>Instance 1<br/>Flask + Gunicorn]
-        B2[Backend API<br/>Instance 2<br/>Flask + Gunicorn]
-        B3[Backend API<br/>Instance N<br/>Flask + Gunicorn]
+        B1[Backend API<br/>Instance 1<br/>FastAPI + Uvicorn]
+        B2[Backend API<br/>Instance 2<br/>FastAPI + Uvicorn]
+        B3[Backend API<br/>Instance N<br/>FastAPI + Uvicorn]
         R[(Redis<br/>Shared State Store)]
+        P[(Postgres<br/>Cold Storage)]
     end
 
     subgraph "Frontend Layer (Docker/Static)"
@@ -70,6 +76,9 @@ graph TB
     B1 <-->|Read/Write<br/>Camera State| R
     B2 <-->|Read/Write<br/>Camera State| R
     B3 <-->|Read/Write<br/>Camera State| R
+    B1 -->|Insert Payloads| P
+    B2 -->|Insert Payloads| P
+    B3 -->|Insert Payloads| P
     
     U1 -->|HTTP| F
     U2 -->|HTTP| F
@@ -137,7 +146,7 @@ User Browser → Nginx → Backend API → Redis → JSON Response
 ```
 
 **API Calls (every 1 second):**
-- `GET /cameras` - List all active cameras
+- `GET /cameras` - List active cameras (filters stale ones)
 - `GET /latest?camera_id=camera_1` - Fetch latest data for selected camera
 
 **Backend Processing:**
@@ -152,7 +161,7 @@ User Browser → Nginx → Backend API → Redis → JSON Response
 
 ### Current Setup (Development)
 ```
-1 Edge Device → 1 Backend Instance → 1 Frontend Container → 1 Redis
+Edge (local Python) → Backend (FastAPI) → Frontend (Nginx) → Redis + Postgres
 ```
 
 ### Production Scaling (Horizontal)
@@ -398,12 +407,12 @@ graph LR
 ## Current Implementation Status
 
 ✅ **Implemented:**
-- Edge inference with YOLOv8 tracking
-- Backend API with Redis + in-memory fallback
-- Multi-camera support
-- Real-time metrics computation
+- Edge inference with YOLOv8 tracking (persistent HTTP session)
+- Backend API FastAPI with Redis + in-memory fallback
+- Postgres cold storage for `/update` payloads
+- Multi-camera support with stale camera filtering
 - REST API with CORS
-- Dockerized backend + frontend
+- Dockerized backend + frontend + Redis + Postgres
 - Horizontal scaling ready (stateless backend)
 
 🚧 **Not Yet Implemented:**
