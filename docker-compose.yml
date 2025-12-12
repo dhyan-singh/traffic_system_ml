@@ -1,0 +1,38 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: traffic-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ./backend
+    container_name: traffic-backend
+    restart: unless-stopped
+    depends_on:
+      - redis
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - PORT=5001
+    ports:
+      - "5001:5001"
+
+  frontend:
+    build:
+      context: ./traffic-pulse-main
+      args:
+        - VITE_API_URL=http://localhost:5001
+    container_name: traffic-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+networks:
+  default:
+    name: traffic-net

@@ -6,6 +6,7 @@ Frame Grabber → YOLO Detector → Metrics → JSON Output → FPS Logger
 import time
 import json
 
+import os
 import requests
 import cv2
 import torch
@@ -150,9 +151,10 @@ class InferenceEngine:
                 "metrics": metrics,
                 "alerts": alerts,
             }
+            backend_url = os.getenv("BACKEND_URL", "http://127.0.0.1:5001/update")
             try:
-                requests.post("http://127.0.0.1:5001/update", json=output, timeout=0.05)
-            except:
+                requests.post(backend_url, json=output, timeout=0.05)
+            except Exception:
                 pass  # ignore connection errors if backend not running
 
             # print(json.dumps(output, indent=2))

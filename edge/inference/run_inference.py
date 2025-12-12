@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -7,18 +8,16 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from inference_engine import InferenceEngine
 
 if __name__ == "__main__":
-    # IMPORTANT: Put your phone camera stream URL here
-    stream_url = (
-        "http://10.243.180.15:8080/video"  # Example: "http://192.168.43.1:8080/video"
-    )
+    # Environment overrides for container usage
+    stream_url = os.getenv("STREAM_URL", "0")
+    camera_id = os.getenv("CAMERA_ID", "camera_1")
 
-    stream_url = 0  # Set to None to use default webcam
-
-    # Set camera ID for multi-camera support (change this for each camera)
-    camera_id = "camera_1"  # Options: "camera_1", "camera_2", "default", etc.
+    # Use integer 0 when STREAM_URL is "0" to grab default webcam
+    stream_value = 0 if str(stream_url) == "0" else stream_url
 
     engine = InferenceEngine(
-        stream_url=stream_url, model_path="yolov8s.pt", camera_id=camera_id
+        stream_url=stream_value, model_path="yolov8s.pt", camera_id=camera_id
     )
 
-    engine.run(display=True)
+    # Disable OpenCV window in container environments
+    engine.run(display=False)
