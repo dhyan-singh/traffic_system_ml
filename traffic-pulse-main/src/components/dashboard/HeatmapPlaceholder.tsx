@@ -1,8 +1,14 @@
 import { Map } from "lucide-react";
 
-const STREAM_URL = "http://127.0.0.1:5001/video_feed";
+const BASE_STREAM_URL = "http://127.0.0.1:5001/video_feed";
 
-export function HeatmapPlaceholder() {
+interface HeatmapPlaceholderProps {
+  cameraId?: string;
+}
+
+export function HeatmapPlaceholder({ cameraId = 'default' }: HeatmapPlaceholderProps) {
+  const streamUrl = `${BASE_STREAM_URL}?camera_id=${cameraId}`;
+
   return (
     <div className="bg-card border border-border rounded-xl p-5 h-full flex flex-col">
       
@@ -19,7 +25,7 @@ export function HeatmapPlaceholder() {
       {/* Live Video Stream */}
       <div className="flex-1 flex items-center justify-center overflow-hidden rounded-xl border bg-black">
         <img
-          src={STREAM_URL}
+          src={streamUrl}
           alt="Live Traffic Stream"
           className="w-full h-full object-contain"
         />

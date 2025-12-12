@@ -4,8 +4,6 @@ import { TrafficData, TimeSeriesPoint } from '@/types/traffic';
 // Backend API endpoint
 // Backend API endpoint — uses Vite env var VITE_API_URL if present, otherwise localhost for dev
 const BASE_API = (import.meta && import.meta.env && import.meta.env.VITE_API_URL) || 'http://127.0.0.1:5001';
-const API_URL = BASE_API.replace(/\/$/, '') + '/latest';
-
 
 // Polling interval (1 second)
 const POLLING_INTERVAL = 1000;
@@ -67,7 +65,7 @@ function generateDemoData(): TrafficData {
 // ---------------------------------------------------------------------------
 // MAIN HOOK
 // ---------------------------------------------------------------------------
-export function useTrafficData() {
+export function useTrafficData(cameraId: string = 'default') {
   const [data, setData] = useState<TrafficData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +76,7 @@ export function useTrafficData() {
   const [congestionHistory, setCongestionHistory] = useState<TimeSeriesPoint[]>([]);
 
   const failedAttempts = useRef(0);
+  const API_URL = `${BASE_API.replace(/\/$/, '')}/latest?camera_id=${cameraId}`;
 
   // -------------------------------------------------------------------------
   // PUSH NEW HISTORY VALUES
@@ -115,6 +114,7 @@ export function useTrafficData() {
       if (Object.keys(jsonData).length === 0) {
         setError('Waiting for real-time data...');
         setIsConnected(true);
+        setIsLoading(false);
         return;
       }
 
@@ -146,7 +146,7 @@ export function useTrafficData() {
         setError(err.message || 'API connection failed');
       }
     }
-  }, [updateHistoryData]);
+  }, [API_URL, updateHistoryData]);
 
   // -------------------------------------------------------------------------
   // DEMO MODE CYCLER
@@ -161,6 +161,15 @@ export function useTrafficData() {
   // EFFECT → POLLING LOOP
   // -------------------------------------------------------------------------
   useEffect(() => {
+    // Reset state when camera changes
+    setData(null);
+    setIsLoading(true);
+    setError(null);
+    setVehicleCountHistory([]);
+    setCongestionHistory([]);
+    setIsDemoMode(false);
+    failedAttempts.current = 0;
+    
     fetchData();
 
     const interval = setInterval(() => {
@@ -172,7 +181,7 @@ export function useTrafficData() {
     }, POLLING_INTERVAL);
 
     return () => clearInterval(interval);
-  }, [fetchData, generateDemoUpdate, isDemoMode]);
+  }, [cameraId, fetchData, generateDemoUpdate, isDemoMode]);
 
   // -------------------------------------------------------------------------
   // RETURN VALUES TO FRONTEND

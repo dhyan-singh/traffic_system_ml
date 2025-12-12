@@ -14,6 +14,11 @@ if __name__ == "__main__":
 
     stream_url = 0  # Set to None to use default webcam
 
-    engine = InferenceEngine(stream_url=stream_url, model_path="yolov8s.pt")
+    # Set camera ID for multi-camera support (change this for each camera)
+    camera_id = "camera_1"  # Options: "camera_1", "camera_2", "default", etc.
+
+    engine = InferenceEngine(
+        stream_url=stream_url, model_path="yolov8s.pt", camera_id=camera_id
+    )
 
     engine.run(display=True)

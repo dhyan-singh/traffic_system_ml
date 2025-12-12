@@ -1,4 +1,6 @@
+import { useState, useEffect } from 'react';
 import { useTrafficData } from '@/hooks/useTrafficData';
+import { useCameras } from '@/hooks/useCameras';
 import { Header } from '@/components/dashboard/Header';
 import { VehicleCountCard } from '@/components/dashboard/VehicleCountCard';
 import { CongestionGauge } from '@/components/dashboard/CongestionGauge';
@@ -10,8 +12,19 @@ import { CongestionChart } from '@/components/dashboard/CongestionChart';
 import { DetectionsTable } from '@/components/dashboard/DetectionsTable';
 import { HeatmapPlaceholder } from '@/components/dashboard/HeatmapPlaceholder';
 import { LoadingState } from '@/components/dashboard/LoadingState';
+import { Camera } from 'lucide-react';
 
 const Index = () => {
+  const { cameras, isLoading: camerasLoading } = useCameras();
+  const [selectedCameraId, setSelectedCameraId] = useState<string>('default');
+
+  // Auto-select first available camera when cameras list loads
+  useEffect(() => {
+    if (cameras.length > 0 && selectedCameraId === 'default' && !cameras.some(c => c.id === 'default')) {
+      setSelectedCameraId(cameras[0].id);
+    }
+  }, [cameras, selectedCameraId]);
+
   const { 
     data, 
     isLoading, 
@@ -19,7 +32,7 @@ const Index = () => {
     isDemoMode,
     vehicleCountHistory,
     congestionHistory 
-  } = useTrafficData();
+  } = useTrafficData(selectedCameraId);
 
   if (isLoading && !data) {
     return <LoadingState message="Connecting to traffic API..." />;
@@ -48,6 +61,35 @@ const Index = () => {
       <Header fps={fps} isConnected={isConnected} isDemoMode={isDemoMode} />
       
       <main className="p-6 space-y-6">
+        {/* Camera Selector */}
+        <section className="bg-card border border-border rounded-xl p-4">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-foreground">
+              <Camera className="w-5 h-5" />
+              <span className="font-semibold">Select Camera:</span>
+            </div>
+            <select
+              value={selectedCameraId}
+              onChange={(e) => setSelectedCameraId(e.target.value)}
+              className="flex-1 max-w-xs px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              disabled={camerasLoading}
+            >
+              {cameras.length === 0 ? (
+                <option value="default">Default Camera</option>
+              ) : (
+                cameras.map((camera) => (
+                  <option key={camera.id} value={camera.id}>
+                    {camera.id} {camera.last_update ? `(Last update: ${new Date(camera.last_update).toLocaleTimeString()})` : ''}
+                  </option>
+                ))
+              )}
+            </select>
+            <span className="text-sm text-muted-foreground">
+              {cameras.length} camera{cameras.length !== 1 ? 's' : ''} available
+            </span>
+          </div>
+        </section>
+
         {/* Demo Mode Banner */}
         {isDemoMode && (
           <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 text-center">
@@ -81,7 +123,7 @@ const Index = () => {
         {/* Bottom Two Columns */}
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <DetectionsTable detections={detections} />
-          <HeatmapPlaceholder />
+          <HeatmapPlaceholder cameraId={selectedCameraId} />
         </section>
 
         {/* Footer */}

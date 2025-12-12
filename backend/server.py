@@ -2,18 +2,19 @@
 C3 - Backend API Server for Realtime Traffic Analytics
 Receives events from inference engine
 Serves latest event to dashboard frontend
+Supports multiple cameras
 """
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import threading
-latest_encoded_frame = None
-
+from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)
 
-latest_event = {}   # Global shared state
+# Global shared state - stores data per camera_id
+camera_data = {}  # { "camera_id": { "data": {...}, "last_update": timestamp } }
 lock = threading.Lock()
 
 
@@ -21,23 +22,49 @@ lock = threading.Lock()
 def update():
     """
     Inference engine sends data here every frame.
+    Expects camera_id in the payload.
     """
-    global latest_event
+    global camera_data
     data = request.json
 
-    with lock:
-        latest_event = data
+    # Extract camera_id from payload, default to "default" if not provided
+    camera_id = data.get("camera_id", "default")
 
-    return {"status": "ok"}, 200
+    with lock:
+        camera_data[camera_id] = {
+            "data": data,
+            "last_update": datetime.now().isoformat(),
+        }
+
+    return {"status": "ok", "camera_id": camera_id}, 200
+
+
+@app.route("/cameras", methods=["GET"])
+def get_cameras():
+    """
+    Returns list of available camera IDs.
+    """
+    with lock:
+        cameras = [
+            {"id": camera_id, "last_update": info["last_update"]}
+            for camera_id, info in camera_data.items()
+        ]
+    return jsonify({"cameras": cameras})
 
 
 @app.route("/latest", methods=["GET"])
 def latest():
     """
     Dashboard fetches latest analytics here.
+    Accepts optional camera_id query parameter.
     """
+    camera_id = request.args.get("camera_id", "default")
+
     with lock:
-        return jsonify(latest_event)
+        if camera_id in camera_data:
+            return jsonify(camera_data[camera_id]["data"])
+        else:
+            return jsonify({})
 
 
 if __name__ == "__main__":

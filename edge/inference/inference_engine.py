@@ -41,8 +41,9 @@ else:
 
 
 class InferenceEngine:
-    def __init__(self, stream_url, model_path="yolov8n.pt"):
+    def __init__(self, stream_url, model_path="yolov8n.pt", camera_id="default"):
         self.stream_url = stream_url
+        self.camera_id = camera_id
         self.model_loader = YOLOModelLoader(model_path=model_path, device="auto")
         self.model = self.model_loader.get_model()
         self.alert_engine = AlertEngine()
@@ -142,6 +143,7 @@ class InferenceEngine:
             alerts = self.alert_engine.generate_alerts(metrics, vehicle_detections)
 
             output = {
+                "camera_id": self.camera_id,
                 "fps": fps,
                 "num_detections": len(detections_json),
                 "detections": detections_json,
@@ -153,15 +155,15 @@ class InferenceEngine:
             except:
                 pass  # ignore connection errors if backend not running
 
-            print(json.dumps(output, indent=2))
+            # print(json.dumps(output, indent=2))
 
             # Display annotated frame
-            if display:
-                annotated = results.plot()
-                cv2.imshow("Inference Engine - Press Q to exit", annotated)
+            # if display:
+            #     annotated = results.plot()
+            #     cv2.imshow("Inference Engine - Press Q to exit", annotated)
 
-                if cv2.waitKey(1) & 0xFF == ord("q"):
-                    break
+            #     if cv2.waitKey(1) & 0xFF == ord("q"):
+            #         break
 
         self.cap.release()
         cv2.destroyAllWindows()
